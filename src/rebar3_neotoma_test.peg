@@ -1,0 +1,55 @@
+config  <- "\n"* line ("\n" line)* "\n"* `action(config,     Node)`;
+line    <- ws* pair? ws* comment? ws*    `action(line,       Node)`;
+pair    <- key ws* "=" ws* value         `action(pair,       Node)`;
+comment <- ";" [^\n]*                    `action(comment,    Node)`;
+key     <- name ( "." name )*            `action(key,        Node)`;
+value   <- [^\n;]*                       `action(value,      Node)`;
+name    <- [a-z] [a-z0-9_]*              `action(name,       Node)`;
+ws      <- [ \t\r]+                      `action(whitespace, Node)`;
+
+`
+-compile(export_all).
+
+action(Name, Node) ->
+    io:format("~p <- ~p~n", [Name, Node]),
+    Result = apply(gconfig_plain, Name, [Node]),
+    io:format("~p: -> ~p~n", [Name, Result]),
+    Result.
+
+config([_Prolog, Head, Tail, _Epilog]) ->
+    Head ++ lists:concat([Line|| [_, Line] <- Tail]).
+
+is_pair({pair, _, _}) ->
+    true;
+is_pair(_) ->
+    false.
+
+line(Node) ->
+    [Pair || Pair <- Node, is_pair(Pair)].
+
+pair([Name, _, _, _, Value]) ->
+    {pair, Name, Value}.
+
+binary_list_to_char(Data) ->
+    lists:concat([binary_to_list(Char) || Char <- Data]).
+
+comment([_, Content]) ->
+    {comment, binary_list_to_char(Content)}.
+
+key([Head, Tail]) ->
+    [Head | [Name || [_, Name] <- Tail]].
+
+value(Value) ->
+    lists:concat([binary_to_list(Char) || Char <- Value]).
+
+name([Head, Tail]) ->
+    binary_to_list(Head) ++ binary_list_to_char(Tail).
+
+whitespace(_) ->
+    whitespace.
+
+parse() ->
+    {ok, Data} = file:read_file('test.config'),
+    parse(Data).
+
+`
